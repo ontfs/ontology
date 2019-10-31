@@ -72,6 +72,7 @@ func NativeInvoke(service *NeoVmService, engine *vm.ExecutionEngine) error {
 	}
 
 	native := &native.NativeService{
+		Store:       service.Store,
 		CacheDB:     service.CacheDB,
 		InvokeParam: contract,
 		Tx:          service.Tx,
