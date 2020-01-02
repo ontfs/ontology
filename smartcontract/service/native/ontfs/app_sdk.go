@@ -257,6 +257,7 @@ func FsGetSpaceInfo(native *native.NativeService) ([]byte, error) {
 func FsStoreFiles(native *native.NativeService) ([]byte, error) {
 	contract := native.ContextRef.CurrentContext().ContractAddress
 
+	var errInfos Errors
 	var fileInfoList FileInfoList
 	source := common.NewZeroCopySource(native.Input)
 	fileInfoListData, err := DecodeVarBytes(source)
@@ -276,24 +277,31 @@ func FsStoreFiles(native *native.NativeService) ([]byte, error) {
 
 	for _, fileInfo := range fileInfoList.FilesI {
 		if !native.ContextRef.CheckWitness(fileInfo.FileOwner) {
+			errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles CheckFileOwner failed!")
 			log.Error("[APP SDK] FsStoreFiles CheckFileOwner failed!")
 			continue
 		}
 
 		if fileInfo.PdpInterval == 0 {
-			return utils.BYTE_FALSE, errors.NewErr("[APP SDK] FsStoreFiles PdpInterval equals zero!")
+			errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles PdpInterval equals zero!")
+			log.Error("[APP SDK] FsStoreFiles PdpInterval equals zero!")
+			continue
 		}
 
 		if fileInfo.TimeExpired < uint64(native.Time) {
+			errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles fileInfo TimeExpired error!")
 			log.Error("[APP SDK] FsStoreFiles fileInfo TimeExpired error!")
 			continue
 		}
 
 		if fileExist := getAndUpdateFileInfo(native, fileInfo.FileOwner, fileInfo.FileHash); fileExist != nil {
 			if !fileExist.ValidFlag {
-				deleteFile(native, fileExist)
 				log.Debug("[APP SDK] FsStoreFiles Delete old fileInfo")
+				if !deleteFile(native, fileExist, &errInfos) {
+					continue
+				}
 			} else {
+				errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles File has stored!")
 				log.Debug("[APP SDK] FsStoreFiles File has stored!")
 				continue
 			}
@@ -308,13 +316,16 @@ func FsStoreFiles(native *native.NativeService) ([]byte, error) {
 		if fileInfo.StorageType == FileStorageTypeUseSpace {
 			space := getAndUpdateSpaceInfo(native, fileInfo.FileOwner)
 			if space == nil {
-				return utils.BYTE_FALSE, errors.NewErr("[APP SDK] FsStoreFiles getAndUpdateSpaceInfo error!")
+				errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles getAndUpdateSpaceInfo error!")
+				continue
 			}
 			if !space.ValidFlag {
-				return utils.BYTE_FALSE, errors.NewErr("[APP SDK] FsStoreFiles space timeExpired!")
+				errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles space timeExpired!")
+				continue
 			}
 			if space.RestVol <= fileInfo.FileBlockCount*DefaultPerBlockSize {
-				return utils.BYTE_FALSE, errors.NewErr("[APP SDK] FsStoreFiles RestVol is not enough error!")
+				errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles RestVol is not enough error!")
+				continue
 			}
 			space.RestVol -= fileInfo.FileBlockCount * DefaultPerBlockSize
 			fileInfo.PdpInterval = space.PdpInterval
@@ -325,22 +336,26 @@ func FsStoreFiles(native *native.NativeService) ([]byte, error) {
 
 			err = appCallTransfer(native, utils.OngContractAddress, fileInfo.FileOwner, contract, fileInfo.PayAmount)
 			if err != nil {
-				log.Error("[APP SDK] FsStoreFiles AppCallTransfer, transfer error!")
+				errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles AppCallTransfer, transfer error!")
 				continue
 			}
 		} else {
-			return utils.BYTE_FALSE, errors.NewErr("[APP SDK] FsStoreFiles unknown StorageType!")
+			errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] FsStoreFiles unknown StorageType!")
+			continue
 		}
 		addFileInfo(native, &fileInfo)
 		log.Warnf("setFileOwner %s %s", fileInfo.FileHash, fileInfo.FileOwner.ToBase58())
 		setFileOwner(native, fileInfo.FileHash, fileInfo.FileOwner)
 	}
+
+	errInfos.AddErrorsEvent(native, contract)
 	return utils.BYTE_TRUE, nil
 }
 
 func FsRenewFiles(native *native.NativeService) ([]byte, error) {
 	contract := native.ContextRef.CurrentContext().ContractAddress
 
+	var errInfos Errors
 	var filesReNew FileReNewList
 	filesReNewSrc := common.NewZeroCopySource(native.Input)
 	filesReNewData, err := DecodeVarBytes(filesReNewSrc)
@@ -360,33 +375,33 @@ func FsRenewFiles(native *native.NativeService) ([]byte, error) {
 
 	for _, fileReNew := range filesReNew.FilesReNew {
 		if !native.ContextRef.CheckWitness(fileReNew.Payer) {
-			log.Error("[APP SDK] FsRenewFiles CheckPayer failed!")
+			errInfos.AddObjectError(string(fileReNew.FileHash), "[APP SDK] FsRenewFiles CheckPayer failed!")
 			continue
 		}
 
 		fileInfo := getAndUpdateFileInfo(native, fileReNew.FileOwner, fileReNew.FileHash)
 		if fileInfo == nil {
-			log.Error("[APP SDK] FsRenewFiles getAndUpdateFileInfo error!")
+			errInfos.AddObjectError(string(fileReNew.FileHash), "[APP SDK] FsRenewFiles getAndUpdateFileInfo error!")
 			continue
 		}
 
 		if fileInfo.StorageType == FileStorageTypeUseFile {
 			if !fileInfo.ValidFlag {
-				log.Error("[APP SDK] FsRenewFiles File is expired! need to upload again")
+				errInfos.AddObjectError(string(fileReNew.FileHash), "[APP SDK] FsRenewFiles File is expired! need to upload again")
 				continue
 			}
 
 			fileInfo.TimeExpired = fileReNew.NewTimeExpired
 			newFee := calcTotalFilePayAmountByFile(fileInfo, globalParam.GasPerKbForSaveWithFile)
 			if newFee < fileInfo.PayAmount {
-				log.Error("[APP SDK] FsRenewFiles newFee < fileInfo.PayAmount")
+				errInfos.AddObjectError(string(fileReNew.FileHash), "[APP SDK] FsRenewFiles newFee < fileInfo.PayAmount")
 				continue
 			}
 
 			renewFee := newFee - fileInfo.PayAmount
 			err = appCallTransfer(native, utils.OngContractAddress, fileReNew.Payer, contract, renewFee)
 			if err != nil {
-				log.Error("[APP SDK] FsRenewFiles AppCallTransfer, transfer error!")
+				errInfos.AddObjectError(string(fileReNew.FileHash), "[APP SDK] FsRenewFiles AppCallTransfer, transfer error!")
 				continue
 			}
 
@@ -394,13 +409,18 @@ func FsRenewFiles(native *native.NativeService) ([]byte, error) {
 			fileInfo.RestAmount = fileInfo.RestAmount + renewFee
 			addFileInfo(native, fileInfo)
 		} else {
-			return utils.BYTE_FALSE, errors.NewErr("[APP SDK] FsRenewFiles StorageType is not FileStorageTypeUseFile!")
+			errInfos.AddObjectError(string(fileReNew.FileHash), "[APP SDK] FsRenewFiles StorageType is not FileStorageTypeUseFile!")
 		}
 	}
+
+	errInfos.AddErrorsEvent(native, contract)
 	return utils.BYTE_TRUE, nil
 }
 
 func FsDeleteFiles(native *native.NativeService) ([]byte, error) {
+	contract := native.ContextRef.CurrentContext().ContractAddress
+
+	var errInfos Errors
 	var fileDelList FileDelList
 	fileDelListSrc := common.NewZeroCopySource(native.Input)
 	fileDelListData, err := DecodeVarBytes(fileDelListSrc)
@@ -415,15 +435,15 @@ func FsDeleteFiles(native *native.NativeService) ([]byte, error) {
 	for _, fileDel := range fileDelList.FilesDel {
 		fileInfo := getFileInfoByHash(native, fileDel.FileHash)
 		if fileInfo == nil {
-			log.Error("[APP SDK] FsDeleteFiles fileInfo is nil")
+			errInfos.AddObjectError(string(fileDel.FileHash), "[APP SDK] FsDeleteFiles fileInfo is nil")
 			continue
 		}
 
 		if !native.ContextRef.CheckWitness(fileInfo.FileOwner) {
-			log.Error("[APP SDK] FsDeleteFiles CheckFileOwner failed!")
+			errInfos.AddObjectError(string(fileDel.FileHash), "[APP SDK] FsDeleteFiles CheckFileOwner failed!")
 			continue
 		}
-		deleteFile(native, fileInfo)
+		deleteFile(native, fileInfo, &errInfos)
 
 		//pdpRecordList := getPdpRecordList(native, fileInfo.FileHash, fileInfo.FileOwner)
 		//
@@ -463,18 +483,20 @@ func FsDeleteFiles(native *native.NativeService) ([]byte, error) {
 		//delFileOwner(native, fileInfo.FileHash)
 		//delPdpRecordList(native, fileDel.FileHash, fileInfo.FileOwner)
 	}
+
+	errInfos.AddErrorsEvent(native, contract)
 	return utils.BYTE_TRUE, nil
 }
 
-func deleteFile(native *native.NativeService, fileInfo *FileInfo) {
+func deleteFile(native *native.NativeService, fileInfo *FileInfo, errInfos *Errors) bool {
 	contract := native.ContextRef.CurrentContext().ContractAddress
 	pdpRecordList := getPdpRecordList(native, fileInfo.FileHash, fileInfo.FileOwner)
 
 	for _, pdpRecord := range pdpRecordList.PdpRecords {
 		nodeInfo := getNodeInfo(native, pdpRecord.NodeAddr)
 		if nodeInfo == nil {
-			log.Error("[APP SDK] DeleteFile getNodeInfo error")
-			return
+			errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] DeleteFile getNodeInfo error")
+			return false
 		}
 
 		if !pdpRecord.SettleFlag {
@@ -487,30 +509,34 @@ func deleteFile(native *native.NativeService, fileInfo *FileInfo) {
 	if fileInfo.StorageType == FileStorageTypeUseFile {
 		err := appCallTransfer(native, utils.OngContractAddress, contract, fileInfo.FileOwner, fileInfo.RestAmount)
 		if err != nil {
-			log.Error("[APP SDK] DeleteFile AppCallTransfer, transfer error!")
-			return
+			errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] DeleteFile AppCallTransfer, transfer error!")
+			return false
 		}
 	} else if fileInfo.StorageType == FileStorageTypeUseSpace {
 		space := getAndUpdateSpaceInfo(native, fileInfo.FileOwner)
 		if space == nil {
-			log.Error("[APP SDK] DeleteFile getAndUpdateSpaceInfo error!")
-			return
+			errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] DeleteFile getAndUpdateSpaceInfo error!")
+			return false
 		}
 		space.RestVol += fileInfo.FileBlockCount * DefaultPerBlockSize
 		addSpaceInfo(native, space)
 	} else {
-		log.Error("[APP SDK] DeleteFile file StorageType error")
-		return
+		errInfos.AddObjectError(string(fileInfo.FileHash), "[APP SDK] DeleteFile file StorageType error")
+		return false
 	}
 
 	delFileInfo(native, fileInfo.FileOwner, fileInfo.FileHash)
 	delFileOwner(native, fileInfo.FileHash)
 	delPdpRecordList(native, fileInfo.FileHash, fileInfo.FileOwner)
+	return true
 }
 
 func FsTransferFiles(native *native.NativeService) ([]byte, error) {
 	//Note: May cause storage node not to find PdpInfo, so when an error occurs,
 	//the storage node needs to try to commit more than once
+	contract := native.ContextRef.CurrentContext().ContractAddress
+
+	var errInfos Errors
 	var fileTransferList FileTransferList
 	fileTransferListSrc := common.NewZeroCopySource(native.Input)
 	fileTransferListData, err := DecodeVarBytes(fileTransferListSrc)
@@ -524,28 +550,28 @@ func FsTransferFiles(native *native.NativeService) ([]byte, error) {
 
 	for _, fileTransfer := range fileTransferList.FilesTransfer {
 		if native.ContextRef.CheckWitness(fileTransfer.OriOwner) == false {
-			log.Error("[APP SDK] FsTransferFiles CheckFileOwner failed!")
+			errInfos.AddObjectError(string(fileTransfer.FileHash), "[APP SDK] FsTransferFiles CheckFileOwner failed!")
 			continue
 		}
 
 		fileInfo := getAndUpdateFileInfo(native, fileTransfer.OriOwner, fileTransfer.FileHash)
 		if fileInfo == nil {
-			log.Error("[APP SDK] FsTransferFiles GetFsFileInfo error!")
+			errInfos.AddObjectError(string(fileTransfer.FileHash), "[APP SDK] FsTransferFiles GetFsFileInfo error!")
 			continue
 		}
 
 		if !fileInfo.ValidFlag {
-			log.Error("[APP SDK] FsTransferFiles File is expired!")
+			errInfos.AddObjectError(string(fileTransfer.FileHash), "[APP SDK] FsTransferFiles File is expired!")
 			continue
 		}
 
 		if fileInfo.StorageType != FileStorageTypeUseFile {
-			log.Error("[APP SDK] FsTransferFiles file StorageType is not FileStorageTypeUseFile error!")
+			errInfos.AddObjectError(string(fileTransfer.FileHash), "[APP SDK] FsTransferFiles file StorageType is not FileStorageTypeUseFile error!")
 			continue
 		}
 
 		if fileInfo.FileOwner != fileTransfer.OriOwner {
-			log.Error("[APP SDK] FsTransferFiles Caller is not file's owner!")
+			errInfos.AddObjectError(string(fileTransfer.FileHash), "[APP SDK] FsTransferFiles Caller is not file's owner!")
 			continue
 		}
 
@@ -562,6 +588,8 @@ func FsTransferFiles(native *native.NativeService) ([]byte, error) {
 		delFileOwner(native, fileInfo.FileHash)
 		setFileOwner(native, fileInfo.FileHash, fileInfo.FileOwner)
 	}
+
+	errInfos.AddErrorsEvent(native, contract)
 	return utils.BYTE_TRUE, nil
 }
 

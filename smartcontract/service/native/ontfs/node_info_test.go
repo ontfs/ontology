@@ -28,14 +28,14 @@ import (
 
 func TestFsNodeInfo_Serialization(t *testing.T) {
 	nodeInfo := FsNodeInfo{
-		Pledge:      uint64(100000000),
-		Profit:      uint64(200000000),
-		Volume:      uint64(300000000),
-		RestVol:     uint64(400000000),
-		ServiceTime: uint64(500000000),
+		Pledge:      uint64(10),
+		Profit:      uint64(20),
+		Volume:      uint64(30),
+		RestVol:     uint64(40),
+		ServiceTime: uint64(50),
 		NodeAddr: common.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05,
 			0x01, 0x02, 0x03, 0x04, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05},
-		NodeNetAddr: []byte("www.ontfs.io"),
+		NodeNetAddr: []byte("111.111.111.111：111"),
 	}
 	sink := common.NewZeroCopySink(nil)
 	nodeInfo.Serialization(sink)
