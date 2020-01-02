@@ -137,31 +137,31 @@ func calcPdpEndPoint(fileTimeStart uint64, pdpInterval uint64, currTime uint64) 
 }
 
 func checkPdpData(native *native.NativeService, pdpData *PdpData, fileInfo *FileInfo) error {
-	var pdpParam PdpParam
-
-	source := common.NewZeroCopySource(fileInfo.PdpParam)
-	if err := pdpParam.Deserialization(source); err != nil {
-		return errors.NewErr("[Node Business] checkPdpData PdpParam Deserialization error!")
+	var err error
+	var pdpParam pdp.FilePdpHashSt
+	if err = pdpParam.Deserialize(fileInfo.PdpParam); err != nil {
+		return err
 	}
 
-	if pdpData.Version != pdpParam.Version {
-		return fmt.Errorf("[Node Business] checkPdpData PdpData version(%d) not match PdpParam(%d)!",
-			pdpData.Version, pdpParam.Version)
-	}
+	var pdpObj = pdp.NewPdp(pdpParam.Version)
 
 	blockHeader, err := native.Store.GetHeaderByHeight(uint32(pdpData.ChallengeHeight))
 	if err != nil || blockHeader == nil {
 		return errors.NewErr("[Node Business] checkPdpData GetHeaderByHeight error!")
 	}
 	blockHash := blockHeader.Hash()
-	blockHashHexData := blockHash.ToArray()
+	hexBlockHash := blockHash.ToArray()
 
-	challenge := GenChallenge(pdpData.NodeAddr, blockHashHexData, uint32(fileInfo.FileBlockCount), DefaultPdpBlockNum)
+	var nodeId [20]byte
+	copy(nodeId[:], pdpData.NodeAddr[:])
+	blockIndexes := pdpObj.GenChallenge(nodeId, hexBlockHash, fileInfo.FileBlockCount)
 
-	ret := pdp.Verify(pdpParam.G, pdpParam.G0, pdpParam.PubKey, pdpData.MultiRes, string(pdpData.AddRes),
-		pdpParam.FileId, challenge)
-	if !ret {
-		return errors.NewErr("[Node Business] checkPdpData ProveData Verify failed!")
+	for _, blockIndex := range blockIndexes {
+		ret := pdpObj.VerifyProofWithPerBlock(vkData, pdpData.ProveData, hexBlockHash,
+			pdpParam.BlockPdpHashes[blockIndex])
+		if !ret {
+			return errors.NewErr("[Node Business] checkPdpData ProveData Verify failed!")
+		}
 	}
 	return nil
 }

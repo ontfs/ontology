@@ -24,26 +24,22 @@ import (
 )
 
 type PdpData struct {
-	Version         uint64
-	FileHash        []byte
 	NodeAddr        common.Address
-	MultiRes        []byte
-	AddRes          []byte
+	FileHash        []byte
+	ProveData       []byte
 	ChallengeHeight uint64
 }
 
 func (this *PdpData) Serialization(sink *common.ZeroCopySink) {
-	utils.EncodeVarUint(sink, this.Version)
-	sink.WriteVarBytes(this.FileHash)
 	utils.EncodeAddress(sink, this.NodeAddr)
-	sink.WriteVarBytes(this.MultiRes)
-	sink.WriteVarBytes(this.AddRes)
+	sink.WriteVarBytes(this.FileHash)
+	sink.WriteVarBytes(this.ProveData)
 	utils.EncodeVarUint(sink, this.ChallengeHeight)
 }
 
 func (this *PdpData) Deserialization(source *common.ZeroCopySource) error {
 	var err error
-	this.Version, err = utils.DecodeVarUint(source)
+	this.NodeAddr, err = utils.DecodeAddress(source)
 	if err != nil {
 		return err
 	}
@@ -51,15 +47,7 @@ func (this *PdpData) Deserialization(source *common.ZeroCopySource) error {
 	if err != nil {
 		return err
 	}
-	this.NodeAddr, err = utils.DecodeAddress(source)
-	if err != nil {
-		return err
-	}
-	this.MultiRes, err = DecodeVarBytes(source)
-	if err != nil {
-		return err
-	}
-	this.AddRes, err = DecodeVarBytes(source)
+	this.ProveData, err = DecodeVarBytes(source)
 	if err != nil {
 		return err
 	}
