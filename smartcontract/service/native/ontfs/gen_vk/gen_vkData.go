@@ -19,12 +19,12 @@
 package main
 
 import (
-	"io/ioutil"
 	"fmt"
+	"io/ioutil"
 	"os"
 )
 
-func main()  {
+func main() {
 	data, err := ioutil.ReadFile("verifying-key")
 	if err != nil {
 		fmt.Printf("ReadFile verifying-key error\n")
@@ -36,12 +36,12 @@ func main()  {
 
 	var tmp string
 	for i := 0; i < dataLen; i++ {
-		if i % 16 == 0 {
-			tmp = "\n    "
+		if i%16 == 0 {
+			tmp = "\n\t"
 		} else {
 			tmp = ""
 		}
-		if i + 1 == dataLen {
+		if i+1 == dataLen {
 			tmp += fmt.Sprintf("0x%02x}\n", data[i])
 		} else {
 			tmp += fmt.Sprintf("0x%02x, ", data[i])

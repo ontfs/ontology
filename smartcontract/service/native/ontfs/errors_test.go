@@ -19,8 +19,8 @@
 package ontfs
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 )
 
 func TestErrors_Serialization(t *testing.T) {
@@ -34,7 +34,7 @@ func TestErrors_Serialization(t *testing.T) {
 
 	var f Errors
 	f.FromString(data)
-	for obj, err := range f.ObjectErrors  {
+	for obj, err := range f.ObjectErrors {
 		fmt.Printf("obj:%s   error: %s\n", obj, err)
 	}
 }

@@ -137,14 +137,6 @@ func calcPdpEndPoint(fileTimeStart uint64, pdpInterval uint64, currTime uint64) 
 }
 
 func checkPdpData(native *native.NativeService, pdpData *PdpData, fileInfo *FileInfo) error {
-	var err error
-	var pdpParam pdp.FilePdpHashSt
-	if err = pdpParam.Deserialize(fileInfo.PdpParam); err != nil {
-		return err
-	}
-
-	var pdpObj = pdp.NewPdp(pdpParam.Version)
-
 	blockHeader, err := native.Store.GetHeaderByHeight(uint32(pdpData.ChallengeHeight))
 	if err != nil || blockHeader == nil {
 		return errors.NewErr("[Node Business] checkPdpData GetHeaderByHeight error!")
@@ -152,13 +144,24 @@ func checkPdpData(native *native.NativeService, pdpData *PdpData, fileInfo *File
 	blockHash := blockHeader.Hash()
 	hexBlockHash := blockHash.ToArray()
 
-	var nodeId [20]byte
-	copy(nodeId[:], pdpData.NodeAddr[:])
-	blockIndexes := pdpObj.GenChallenge(nodeId, hexBlockHash, fileInfo.FileBlockCount)
+	return CheckPdpProve(pdpData.NodeAddr, hexBlockHash, fileInfo.FileBlockCount, fileInfo.PdpParam, pdpData.ProveData)
+}
+
+//export this function for ontfs
+func CheckPdpProve(nodeAddr common.Address, blockHash []byte, fileBlockCount uint64, pdpParamData []byte,
+	proveData []byte) error {
+	var err error
+
+	var filePdpHashSt pdp.FilePdpHashSt
+	if err = filePdpHashSt.Deserialize(pdpParamData); err != nil {
+		return err
+	}
+
+	var pdpObj = pdp.NewPdp(filePdpHashSt.Version)
+	blockIndexes := pdpObj.GenChallenge(nodeAddr, blockHash, fileBlockCount)
 
 	for _, blockIndex := range blockIndexes {
-		ret := pdpObj.VerifyProofWithPerBlock(vkData, pdpData.ProveData, hexBlockHash,
-			pdpParam.BlockPdpHashes[blockIndex])
+		ret := pdpObj.VerifyProofWithPerBlock(vkData, proveData, blockHash, filePdpHashSt.BlockPdpHashes[blockIndex])
 		if !ret {
 			return errors.NewErr("[Node Business] checkPdpData ProveData Verify failed!")
 		}

@@ -19,12 +19,13 @@
 package ontfs
 
 import (
+	"encoding/base64"
+
 	"github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/config"
 	"github.com/ontio/ontology/smartcontract/event"
 	"github.com/ontio/ontology/smartcontract/service/native"
 	"github.com/ontio/ontology/smartcontract/service/native/utils"
-	"encoding/base64"
 )
 
 type Errors struct {
