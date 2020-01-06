@@ -25,7 +25,7 @@ import (
 )
 
 func main() {
-	data, err := ioutil.ReadFile("verifying-key")
+	data, err := ioutil.ReadFile("vk")
 	if err != nil {
 		fmt.Printf("ReadFile verifying-key error\n")
 		return
