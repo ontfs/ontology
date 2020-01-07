@@ -196,10 +196,12 @@ func (this *FileHashList) Deserialization(source *common.ZeroCopySource) error {
 	}
 
 	for i := uint64(0); i < fileCount; i++ {
-		fileHashTmp, err := DecodeVarBytes(source)
+		fileHashSrc, err := DecodeVarBytes(source)
 		if err != nil {
 			return err
 		}
+		fileHashTmp := make([]byte, len(fileHashSrc))
+		copy(fileHashTmp, fileHashSrc)
 		fileHash := FileHash{FHash: fileHashTmp}
 		this.FilesH = append(this.FilesH, fileHash)
 	}
