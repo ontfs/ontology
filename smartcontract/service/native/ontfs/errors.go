@@ -83,7 +83,8 @@ func (this *Errors) FromString(errors string) error {
 	return nil
 }
 
-func (this *Errors) AddErrorsEvent(native *native.NativeService, contract common.Address) {
+func (this *Errors) AddErrorsEvent(native *native.NativeService) {
+	contract := native.ContextRef.CurrentContext().ContractAddress
 	if !config.DefConfig.Common.EnableEventLog {
 		return
 	}

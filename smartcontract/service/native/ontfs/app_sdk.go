@@ -348,7 +348,7 @@ func FsStoreFiles(native *native.NativeService) ([]byte, error) {
 		setFileOwner(native, fileInfo.FileHash, fileInfo.FileOwner)
 	}
 
-	errInfos.AddErrorsEvent(native, contract)
+	errInfos.AddErrorsEvent(native)
 	return utils.BYTE_TRUE, nil
 }
 
@@ -413,13 +413,11 @@ func FsRenewFiles(native *native.NativeService) ([]byte, error) {
 		}
 	}
 
-	errInfos.AddErrorsEvent(native, contract)
+	errInfos.AddErrorsEvent(native)
 	return utils.BYTE_TRUE, nil
 }
 
 func FsDeleteFiles(native *native.NativeService) ([]byte, error) {
-	contract := native.ContextRef.CurrentContext().ContractAddress
-
 	var errInfos Errors
 	var fileDelList FileDelList
 	fileDelListSrc := common.NewZeroCopySource(native.Input)
@@ -484,7 +482,7 @@ func FsDeleteFiles(native *native.NativeService) ([]byte, error) {
 		//delPdpRecordList(native, fileDel.FileHash, fileInfo.FileOwner)
 	}
 
-	errInfos.AddErrorsEvent(native, contract)
+	errInfos.AddErrorsEvent(native)
 	return utils.BYTE_TRUE, nil
 }
 
@@ -534,7 +532,6 @@ func deleteFile(native *native.NativeService, fileInfo *FileInfo, errInfos *Erro
 func FsTransferFiles(native *native.NativeService) ([]byte, error) {
 	//Note: May cause storage node not to find PdpInfo, so when an error occurs,
 	//the storage node needs to try to commit more than once
-	contract := native.ContextRef.CurrentContext().ContractAddress
 
 	var errInfos Errors
 	var fileTransferList FileTransferList
@@ -589,7 +586,7 @@ func FsTransferFiles(native *native.NativeService) ([]byte, error) {
 		setFileOwner(native, fileInfo.FileHash, fileInfo.FileOwner)
 	}
 
-	errInfos.AddErrorsEvent(native, contract)
+	errInfos.AddErrorsEvent(native)
 	return utils.BYTE_TRUE, nil
 }
 
