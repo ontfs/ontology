@@ -144,6 +144,8 @@ func checkPdpData(native *native.NativeService, pdpData *PdpData, fileInfo *File
 	blockHash := blockHeader.Hash()
 	hexBlockHash := blockHash.ToArray()
 
+	fmt.Printf("ChallengeHeight: %d, blockCount: %d, blockHash: %v\n", pdpData.ChallengeHeight,
+		fileInfo.FileBlockCount, hexBlockHash)
 	return CheckPdpProve(pdpData.NodeAddr, hexBlockHash, fileInfo.FileBlockCount, fileInfo.PdpParam, pdpData.ProveData)
 }
 
@@ -161,6 +163,7 @@ func CheckPdpProve(nodeAddr common.Address, blockHash []byte, fileBlockCount uin
 	blockIndexes := pdpObj.GenChallenge(nodeAddr, blockHash, fileBlockCount)
 
 	for _, blockIndex := range blockIndexes {
+		fmt.Printf("index: %d, block sum: %v\n", blockIndex, filePdpHashSt.BlockPdpHashes[blockIndex])
 		ret := pdpObj.VerifyProofWithPerBlock(vkData, proveData, blockHash, filePdpHashSt.BlockPdpHashes[blockIndex])
 		if !ret {
 			return errors.NewErr("[Node Business] checkPdpData ProveData Verify failed!")
