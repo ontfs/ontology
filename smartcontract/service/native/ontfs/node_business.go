@@ -28,6 +28,7 @@ import (
 	"github.com/ontio/ontology/errors"
 	"github.com/ontio/ontology/smartcontract/service/native"
 	"github.com/ontio/ontology/smartcontract/service/native/utils"
+	"github.com/ontio/ontology/common/log"
 )
 
 func FsFileProve(native *native.NativeService) ([]byte, error) {
@@ -61,10 +62,16 @@ func FsFileProve(native *native.NativeService) ([]byte, error) {
 	}
 	pdpRecord := getPdpRecord(native, fileInfo.FileHash, fileInfo.FileOwner, pdpData.NodeAddr)
 	if pdpRecord == nil {
-		if err = checkPdpData(native, &pdpData, fileInfo); err != nil {
-			return utils.BYTE_FALSE, fmt.Errorf("[Node Business] FsFileProve checkPdpData(file) error: %s",
-				err.Error())
+		if fileInfo.FirstPdp {
+			log.Info("[Node Business] FsFileProve FirstPdp is true, checkPdpData.")
+			if err = checkPdpData(native, &pdpData, fileInfo); err != nil {
+				return utils.BYTE_FALSE, fmt.Errorf("[Node Business] FsFileProve checkPdpData(file) error: %s",
+					err.Error())
+			}
+		} else {
+			log.Info("[Node Business] FsFileProve FirstPdp is false, checkPdpData skip.")
 		}
+
 		pdpRecord = &PdpRecord{NodeAddr: pdpData.NodeAddr, FileHash: pdpData.FileHash,
 			FileOwner: fileInfo.FileOwner, PdpCount: 0, LastPdpTime: currPdpEndPoint,
 			NextHeight: uint64(native.Height) + DefaultPdpHeightIV, SettleFlag: false}
@@ -144,7 +151,7 @@ func checkPdpData(native *native.NativeService, pdpData *PdpData, fileInfo *File
 	blockHash := blockHeader.Hash()
 	hexBlockHash := blockHash.ToArray()
 
-	fmt.Printf("ChallengeHeight: %d, blockCount: %d, blockHash: %v\n", pdpData.ChallengeHeight,
+	log.Debugf("ChallengeHeight: %d, blockCount: %d, blockHash: %v\n", pdpData.ChallengeHeight,
 		fileInfo.FileBlockCount, hexBlockHash)
 	return CheckPdpProve(pdpData.NodeAddr, hexBlockHash, fileInfo.FileBlockCount, fileInfo.PdpParam, pdpData.ProveData)
 }
@@ -163,7 +170,6 @@ func CheckPdpProve(nodeAddr common.Address, blockHash []byte, fileBlockCount uin
 	blockIndexes := pdpObj.GenChallenge(nodeAddr, blockHash, fileBlockCount)
 
 	for _, blockIndex := range blockIndexes {
-		fmt.Printf("index: %d, block sum: %v\n", blockIndex, filePdpHashSt.BlockPdpHashes[blockIndex])
 		ret := pdpObj.VerifyProofWithPerBlock(vkData, proveData, blockHash, filePdpHashSt.BlockPdpHashes[blockIndex])
 		if !ret {
 			return errors.NewErr("[Node Business] checkPdpData ProveData Verify failed!")

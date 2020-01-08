@@ -344,7 +344,7 @@ func FsStoreFiles(native *native.NativeService) ([]byte, error) {
 			continue
 		}
 		addFileInfo(native, &fileInfo)
-		log.Warnf("setFileOwner %s %s", fileInfo.FileHash, fileInfo.FileOwner.ToBase58())
+		log.Infof("setFileOwner %s %s", fileInfo.FileHash, fileInfo.FileOwner.ToBase58())
 		setFileOwner(native, fileInfo.FileHash, fileInfo.FileOwner)
 	}
 

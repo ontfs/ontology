@@ -43,6 +43,7 @@ type FileInfo struct {
 	PayAmount      uint64
 	RestAmount     uint64
 	FileCost       uint64
+	FirstPdp       bool
 	PdpInterval    uint64
 	TimeStart      uint64
 	TimeExpired    uint64
@@ -69,6 +70,7 @@ func (this *FileInfo) Serialization(sink *common.ZeroCopySink) {
 	utils.EncodeVarUint(sink, this.PayAmount)
 	utils.EncodeVarUint(sink, this.RestAmount)
 	utils.EncodeVarUint(sink, this.FileCost)
+	sink.WriteBool(this.FirstPdp)
 	utils.EncodeVarUint(sink, this.PdpInterval)
 	utils.EncodeVarUint(sink, this.TimeStart)
 	utils.EncodeVarUint(sink, this.TimeExpired)
@@ -112,6 +114,10 @@ func (this *FileInfo) Deserialization(source *common.ZeroCopySource) error {
 		return err
 	}
 	this.FileCost, err = utils.DecodeVarUint(source)
+	if err != nil {
+		return err
+	}
+	this.FirstPdp, err = DecodeBool(source)
 	if err != nil {
 		return err
 	}
