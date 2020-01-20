@@ -30,7 +30,7 @@ func InitFs() {
 }
 
 func RegisterFsContract(native *native.NativeService) {
-	native.Register(FS_SET_GLOBAL_PARAM, FsSetGlobalParam)
+	//native.Register(FS_SET_GLOBAL_PARAM, FsSetGlobalParam)
 	native.Register(FS_GET_GLOBAL_PARAM, FsGetGlobalParam)
 
 	native.Register(FS_NODE_REGISTER, FsNodeRegister)
